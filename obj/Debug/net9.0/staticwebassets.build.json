@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "kchDYMlW2qjEBF2FcDtIr9D2FZsbwe7Pey9ZbrJbBX4=",
+  "Source": "CurrencyTransferAPI",
+  "BasePath": "_content/CurrencyTransferAPI",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}
