@@ -1,11 +1,12 @@
+// Services/TransferService.cs
 using CurrencyTransferAPI.Data;
 using CurrencyTransferAPI.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Linq; // Potrzebne dla FirstOrDefaultAsync
+using System.Collections.Generic; // <--- ДОБАВЛЕНО для IEnumerable
+using System.Linq;
 using System.Threading.Tasks;
-// using CurrencyTransferAPI.DTOs; // Jeśli DTO są w osobnym namespace
 
 namespace CurrencyTransferAPI.Services
 {
@@ -13,13 +14,12 @@ namespace CurrencyTransferAPI.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<TransferService> _logger;
-        // private readonly NbpService _nbpService; // Odkomentuj, jeśli będziesz robić przeliczenia walut
+        // private readonly NbpService _nbpService; // Если понадобится для конвертации в будущем
 
-        public TransferService(ApplicationDbContext context, ILogger<TransferService> logger /*, NbpService nbpService */)
+        public TransferService(ApplicationDbContext context, ILogger<TransferService> logger)
         {
             _context = context;
             _logger = logger;
-            // _nbpService = nbpService;
         }
 
         public async Task<TransferResult> ExecuteTransferAsync(int userId, TransferRequestDto request)
@@ -34,22 +34,16 @@ namespace CurrencyTransferAPI.Services
                 return new TransferResult { Success = false, ErrorMessage = "Source and destination accounts cannot be the same." };
             }
 
-            if (request.Amount <= 0) // Dodatkowa walidacja, chociaż Range powinien to złapać
+            if (request.Amount <= 0)
             {
                  _logger.LogWarning("Transfer failed: Invalid transfer amount ({Amount}). Amount must be positive.", request.Amount);
                 return new TransferResult { Success = false, ErrorMessage = "Transfer amount must be positive." };
             }
 
-            // Rozpoczęcie transakcji bazodanowej
-            // To jest kluczowe dla spójności danych!
             using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
-                // 1. Pobierz konto źródłowe, upewnij się, że należy do użytkownika i zablokuj wiersz na czas transakcji
-                // Użycie .Set<Account>() z .FromSqlRaw lub .ExecuteSqlRaw dla SELECT ... FOR UPDATE byłoby bardziej zaawansowane
-                // dla blokowania, ale EF Core domyślnie używa odpowiedniego poziomu izolacji dla transakcji.
-                // Na razie proste pobranie powinno wystarczyć, ale dla systemów o wysokiej współbieżności warto to rozważyć.
                 var fromAccount = await _context.Accounts
                     .FirstOrDefaultAsync(a => a.Id == request.FromAccountId && a.UserId == userId);
 
@@ -60,7 +54,6 @@ namespace CurrencyTransferAPI.Services
                     return new TransferResult { Success = false, ErrorMessage = "Source account not found or you do not have permission to access it." };
                 }
 
-                // 2. Sprawdź saldo konta źródłowego
                 if (fromAccount.Balance < request.Amount)
                 {
                     await dbTransaction.RollbackAsync();
@@ -69,7 +62,6 @@ namespace CurrencyTransferAPI.Services
                     return new TransferResult { Success = false, ErrorMessage = "Insufficient funds in the source account." };
                 }
 
-                // 3. Pobierz konto docelowe
                 var toAccount = await _context.Accounts.FirstOrDefaultAsync(a => a.Id == request.ToAccountId);
                 if (toAccount == null)
                 {
@@ -78,49 +70,35 @@ namespace CurrencyTransferAPI.Services
                     return new TransferResult { Success = false, ErrorMessage = "Destination account not found." };
                 }
 
-                // === OBSŁUGA WALUT ===
-                // Na razie zakładamy, że przelewy są możliwe tylko w tej samej walucie.
-                // Walutą transakcji będzie waluta konta źródłowego.
                 if (fromAccount.CurrencyCode != toAccount.CurrencyCode)
                 {
-                    // TODO: Implementacja logiki dla przelewów międzywalutowych
-                    // - Pobierz kurs wymiany (np. z NbpService)
-                    // - Przelicz `request.Amount` na walutę konta docelowego
-                    // - Upewnij się, że `Transaction.CurrencyCode` i `Transaction.Amount` odzwierciedlają
-                    //   walutę i kwotę pobraną z konta źródłowego.
                     await dbTransaction.RollbackAsync();
                     _logger.LogWarning("Transfer failed: Cross-currency transfer from {FromCurrency} to {ToCurrency} is not yet supported.",
                         fromAccount.CurrencyCode, toAccount.CurrencyCode);
                     return new TransferResult { Success = false, ErrorMessage = "Cross-currency transfers are not supported at this time. Accounts must be in the same currency." };
                 }
                 string transactionCurrency = fromAccount.CurrencyCode;
-                decimal amountToCredit = request.Amount; // W tym scenariuszu kwota do zaksięgowania jest taka sama
+                decimal amountToCredit = request.Amount;
 
 
-                // 4. Aktualizuj salda
                 fromAccount.Balance -= request.Amount;
-                toAccount.Balance += amountToCredit; // amountToCredit to ta sama kwota, bo waluty są te same
+                toAccount.Balance += amountToCredit;
 
-                _context.Accounts.Update(fromAccount); // Jawne oznaczenie jako zmodyfikowane
-                _context.Accounts.Update(toAccount);   // Jawne oznaczenie jako zmodyfikowane
+                _context.Accounts.Update(fromAccount);
+                _context.Accounts.Update(toAccount);
 
-                // 5. Utwórz i zapisz rekord transakcji
                 var transaction = new Transaction
                 {
                     FromAccountId = fromAccount.Id,
                     ToAccountId = toAccount.Id,
-                    Amount = request.Amount,          // Kwota pobrana z konta źródłowego
-                    CurrencyCode = transactionCurrency, // Waluta konta źródłowego
+                    Amount = request.Amount,
+                    CurrencyCode = transactionCurrency, // <--- Убедись, что это правильно!
                     Type = TransactionType.Transfer,
                     Timestamp = DateTime.UtcNow,
                     Description = request.Description
                 };
                 await _context.Transactions.AddAsync(transaction);
-
-                // 6. Zapisz wszystkie zmiany w bazie danych
                 await _context.SaveChangesAsync();
-
-                // 7. Jeśli wszystko powyżej się udało, zatwierdź transakcję bazodanową
                 await dbTransaction.CommitAsync();
 
                 _logger.LogInformation(
@@ -143,18 +121,72 @@ namespace CurrencyTransferAPI.Services
                     }
                 };
             }
-            catch (DbUpdateException ex) // Specyficzny wyjątek dla problemów z zapisem do bazy
+            catch (DbUpdateException ex)
             {
                 await dbTransaction.RollbackAsync();
                 _logger.LogError(ex, "Database update error during transfer from AccountId {FromAccountId} to AccountId {ToAccountId}.", request.FromAccountId, request.ToAccountId);
                 return new TransferResult { Success = false, ErrorMessage = "A database error occurred while processing the transfer." };
             }
-            catch (Exception ex) // Ogólny handler dla innych nieoczekiwanych błędów
+            catch (Exception ex)
             {
-                await dbTransaction.RollbackAsync(); // Zawsze próbuj wycofać transakcję w razie błędu
+                await dbTransaction.RollbackAsync();
                 _logger.LogError(ex, "An unexpected error occurred during the transfer from AccountId {FromAccountId} to AccountId {ToAccountId}.", request.FromAccountId, request.ToAccountId);
                 return new TransferResult { Success = false, ErrorMessage = "An unexpected error occurred during the transfer." };
             }
         }
+
+        // --- РЕАЛИЗАЦИЯ НОВОГО МЕТОДА GetTransactionsByUserIdAsync ---
+        public async Task<IEnumerable<TransactionListItemDto>> GetTransactionsByUserIdAsync(int userId)
+        {
+            _logger.LogInformation("Fetching transactions for UserId {UserId}", userId);
+            try
+            {
+                var userAccountIds = await _context.Accounts
+                                                .Where(a => a.UserId == userId)
+                                                .Select(a => a.Id)
+                                                .ToListAsync();
+
+                if (!userAccountIds.Any())
+                {
+                    _logger.LogInformation("No accounts found for UserId {UserId}. Returning empty transaction list.", userId);
+                    return Enumerable.Empty<TransactionListItemDto>();
+                }
+
+                var transactions = await _context.Transactions
+                    .Where(t => userAccountIds.Contains(t.FromAccountId) || userAccountIds.Contains(t.ToAccountId))
+                    .OrderByDescending(t => t.Timestamp)
+                    .Select(t => new TransactionListItemDto
+                    {
+                        Id = t.Id,
+                        Timestamp = t.Timestamp,
+                        Type = t.Type.ToString(),
+                        Amount = t.Amount,
+                        CurrencyCode = t.CurrencyCode,
+                        Description = t.Description,
+                        FromAccountId = t.FromAccountId,
+                        ToAccountId = t.ToAccountId
+                        // Если решишь добавить AccountNumber в DTO, здесь нужно будет их загружать
+                        // Например, через Include в запросе и маппинг:
+                        // FromAccountNumber = t.FromAccount != null ? t.FromAccount.AccountNumber : null,
+                        // ToAccountNumber = t.ToAccount != null ? t.ToAccount.AccountNumber : null,
+                        // (Это если у Account есть свойство AccountNumber)
+                    })
+                    .ToListAsync();
+
+                _logger.LogInformation("Found {Count} transactions for UserId {UserId}", transactions.Count, userId);
+                return transactions;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching transactions for UserId {UserId}", userId);
+                // В зависимости от твоей политики обработки ошибок, ты можешь:
+                // 1. Пробросить исключение дальше (контроллер его поймает и вернет 500)
+                // throw;
+                // 2. Вернуть пустой список и залогировать ошибку (как сейчас)
+                // 3. Вернуть специальный объект Result с информацией об ошибке
+                return Enumerable.Empty<TransactionListItemDto>(); // Возвращаем пустой список в случае ошибки для простоты
+            }
+        }
+        // --- КОНЕЦ РЕАЛИЗАЦИИ НОВОГО МЕТОДА ---
     }
 }
