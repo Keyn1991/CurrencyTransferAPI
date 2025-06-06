@@ -1,17 +1,18 @@
+// Program.cs
 using CurrencyTransferAPI.Data;
-using CurrencyTransferAPI.Models; // Dla UserRoles
-using CurrencyTransferAPI.Services; // Dla NbpService i przyszłych serwisów
+using CurrencyTransferAPI.Models; // Для UserRoles
+using CurrencyTransferAPI.Services; // Для NbpService и остальных сервисов
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models; // Dla OpenApiInfo i SecurityScheme
+using Microsoft.OpenApi.Models; // Для OpenApiInfo и SecurityScheme
 using System.Text;
-using System.ComponentModel.DataAnnotations; // Dla atrybutów w DTO
-using System.IdentityModel.Tokens.Jwt;
+// using System.ComponentModel.DataAnnotations; // Не используется напрямую здесь
+using System.IdentityModel.Tokens.Jwt; // Для JwtSecurityTokenHandler
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Konfiguracja Bazy Danych ---
+// --- Конфигурация Базы Данных ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrEmpty(connectionString))
 {
@@ -21,8 +22,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
 );
 
-// --- Konfiguracja JWT ---
-JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
+// --- Конфигурация JWT ---
+JwtSecurityTokenHandler.DefaultMapInboundClaims = false; // Рекомендуется для избежания перезаписи стандартных имен клеймов
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
@@ -36,7 +37,7 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme; // Можно оставить только первые два
 })
 .AddJwtBearer(options =>
 {
@@ -54,25 +55,26 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization(options =>
 {
-    // Tutaj można dodawać polityki autoryzacyjne, jeśli będą potrzebne bardziej złożone scenariusze
-    // Np. options.AddPolicy("RequireAdminRole", policy => policy.RequireRole(UserRoles.Admin));
+    // Пример добавления политики для роли Администратора
+    // options.AddPolicy("RequireAdminRole", policy => policy.RequireRole(UserRoles.Admin));
 });
 
 
-// Add services to the container.
+// Регистрация сервисов в контейнере DI
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "CurrencyTransfer API", Version = "v1" });
+    // Конфигурация для JWT в Swagger
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
-        Description = "Please enter a valid token (JWT)",
+        Description = "Please enter a valid token (JWT). Example: \"Bearer {token}\"",
         Name = "Authorization",
-        Type = SecuritySchemeType.Http,
+        Type = SecuritySchemeType.Http, // Изменено с ApiKey на Http для Bearer
         BearerFormat = "JWT",
-        Scheme = "Bearer"
+        Scheme = "Bearer" // "bearer" в нижнем регистре
     });
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
@@ -82,31 +84,32 @@ builder.Services.AddSwaggerGen(options =>
                 Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
+                    Id = "Bearer" // Должно совпадать с именем в AddSecurityDefinition
                 }
             },
-            Array.Empty<string>()
+            Array.Empty<string>() // или new string[] {}
         }
     });
 });
 
-// Add memory cache and HTTP client for NBP service (twoje istniejące)
+// Регистрация NbpService и HttpClient для него
 builder.Services.AddMemoryCache();
-builder.Services.AddHttpClient<NbpService>(); // Zakładam, że NbpService istnieje w CurrencyTransferAPI.Services
+builder.Services.AddHttpClient<NbpService>();
 
-// TODO: Rejestracja serwisów dla logiki biznesowej (np. AuthService, AccountService)
+// Регистрация твоих сервисов бизнес-логики
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<ITransferService, TransferService>();
 builder.Services.AddScoped<IExchangeService, ExchangeService>();
-// builder.Services.AddScoped<IAuthService, AuthService>();
+// Если будешь добавлять IPayUService, его нужно будет зарегистрировать здесь:
+builder.Services.AddScoped<IPayUService, PayUService>();
 
-// CORS policy (twoje istniejące)
+// Конфигурация CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:3000") // Adres Twojej aplikacji React
+        policy.WithOrigins("http://localhost:3000") // Адрес твоего React-приложения
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -114,49 +117,46 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Конфигурация HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "CurrencyTransfer API V1");
-        // c.RoutePrefix = string.Empty; // Jeśli chcesz Swaggera na stronie głównej API
+        // c.RoutePrefix = string.Empty; // Раскомментируй, если хочешь Swagger на главной странице API (/)
     });
-    app.UseDeveloperExceptionPage(); // Lepsze komunikaty o błędach w trybie deweloperskim
+    app.UseDeveloperExceptionPage();
 }
 
-// app.UseHttpsRedirection(); // Odkomentuj, jeśli pracujesz z HTTPS i masz skonfigurowany certyfikat
+// app.UseHttpsRedirection(); // Раскомментируй, если настроил HTTPS
 
-app.UseCors("AllowReactApp");
+app.UseCors("AllowReactApp"); // Применение политики CORS
 
-app.UseAuthentication(); // WAŻNE: Przed UseAuthorization
-app.UseAuthorization();
+app.UseAuthentication(); // Включение аутентификации
+app.UseAuthorization();  // Включение авторизации
 
-app.MapControllers();
+app.MapControllers(); // Маппинг контроллеров
 
+// Сидинг администратора при старте (код из твоего примера)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var authServiceInstance = services.GetRequiredService<IAuthService>();
-        // Rzutowanie na konkretną klasę, aby uzyskać dostęp do metody SeedAdminUserAsync
         if (authServiceInstance is AuthService concreteAuthService)
         {
-            // UWAGA: SeedAdminUserAsync jest asynchroniczne.
-            // W tym kontekście synchronicznym (przed app.Run()), jeśli nie możesz użyć await,
-            // możesz zrobić .GetAwaiter().GetResult() - ale rób to z ostrożnością.
-            // Lepszym podejściem jest uczynienie metody Main asynchroniczną lub stworzenie
-            // dedykowanego serwisu hostowanego do zadań startowych.
-            // Na razie, dla prostoty, spróbujmy tak:
+            // Для вызова асинхронного метода из синхронного контекста Main (до app.Run())
+            // .GetAwaiter().GetResult() является одним из способов, но требует осторожности.
+            // Идеально, если Main асинхронный или используется IHostedService.
             Task.Run(async () => await concreteAuthService.SeedAdminUserAsync()).GetAwaiter().GetResult();
             Console.WriteLine("Admin user seeding attempted.");
         }
         else
         {
              var logger = services.GetRequiredService<ILogger<Program>>();
-             logger.LogWarning("AuthService could not be cast to concrete AuthService for seeding.");
+             logger.LogWarning("AuthService could not be cast to concrete AuthService for seeding. Admin user might not be seeded.");
         }
     }
     catch (Exception ex)
