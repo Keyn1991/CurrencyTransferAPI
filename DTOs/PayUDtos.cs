@@ -1,7 +1,7 @@
-// DTOs/PayUDtos.cs
-using System.ComponentModel.DataAnnotations; // Dla atrybutów walidacji
 
-namespace CurrencyTransferAPI.DTOs // <--- WAŻNA PRZESTRZEŃ NAZW
+using System.ComponentModel.DataAnnotations;
+
+namespace CurrencyTransferAPI.DTOs
 {
     public class CreatePaymentRequestDto
     {
@@ -21,7 +21,7 @@ namespace CurrencyTransferAPI.DTOs // <--- WAŻNA PRZESTRZEŃ NAZW
         public string? ContinueUrl { get; set; }
     }
 
-    public class CreatePaymentResponseDto // <--- DEFINICJA TEGO TYPU
+    public class CreatePaymentResponseDto
     {
         public string? OrderId { get; set; }
         public string? RedirectUri { get; set; }
@@ -31,7 +31,7 @@ namespace CurrencyTransferAPI.DTOs // <--- WAŻNA PRZESTRZEŃ NAZW
 
     public class PaymentStatusDto
     {
-        public int AccountId { get; set; } // Upewnij się, że to pole tu jest
+        public int AccountId { get; set; }
         public string? OrderId { get; set; }
         public string? Status { get; set; }
         public decimal Amount { get; set; }

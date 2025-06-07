@@ -57,7 +57,7 @@ namespace CurrencyTransferAPI.Services
         /// <param name="request">The details of the transfer request.</param>
         /// <returns>A TransferResult indicating the outcome of the operation.</returns>
         Task<TransferResult> ExecuteTransferAsync(int initiatingUserId, TransferRequestDto request);
-
+        Task<bool> DeleteTransactionAsync(int transactionId);
                 // --- НОВЫЙ МЕТОД ДЛЯ ПОЛУЧЕНИЯ ТРАНЗАКЦИЙ ---
                 Task<IEnumerable<TransactionListItemDto>> GetTransactionsByUserIdAsync(int userId);
                 // --- КОНЕЦ НОВОГО МЕТОДА ---

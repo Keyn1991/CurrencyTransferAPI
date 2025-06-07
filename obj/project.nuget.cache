@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "0a0PNW3A/EM=",
+  "dgSpecHash": "D3T4qmEQmPw=",
   "success": true,
-  "projectFilePath": "F:\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
+  "projectFilePath": "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\potap\\.nuget\\packages\\bcrypt.net-next\\4.0.3\\bcrypt.net-next.4.0.3.nupkg.sha512",
     "C:\\Users\\potap\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",

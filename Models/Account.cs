@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Diagnostics.CodeAnalysis; // Potrzebne dla SuppressMessage lub required
+using System.Diagnostics.CodeAnalysis;
 
 namespace CurrencyTransferAPI.Models
 {

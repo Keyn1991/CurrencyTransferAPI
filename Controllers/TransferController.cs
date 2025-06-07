@@ -1,19 +1,18 @@
-using CurrencyTransferAPI.Services; // Dla ITransferService i TransferRequestDto
+// Plik: Controllers/TransferController.cs
+
+using CurrencyTransferAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Http;
-using System.IdentityModel.Tokens.Jwt; // Dla JwtRegisteredClaimNames
-using System.Collections.Generic;
-
 
 namespace CurrencyTransferAPI.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Route("api/[controller]")]
+    [Authorize] // Wszystkie metody w tym kontrolerze wymagają autoryzacji
     public class TransfersController : ControllerBase
     {
         private readonly ITransferService _transferService;
@@ -25,39 +24,41 @@ namespace CurrencyTransferAPI.Controllers
             _logger = logger;
         }
 
+        // --- Ujednolicona, poprawna metoda do odczytu ID użytkownika z tokenu ---
         private int GetCurrentUserId()
         {
-            var userIdString = User.FindFirstValue(JwtRegisteredClaimNames.NameId);
-            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            // Używamy standardowego ClaimTypes.NameIdentifier, aby znaleźć ID w tokenie.
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
             {
-                _logger.LogError("GetCurrentUserId failed: Could not find or parse NameId claim. Value found: '{UserIdString}'", userIdString);
+                // Jeśli nie uda się znaleźć lub sparsować ID, rzucamy błąd.
+                // To jest bezpieczne, ponieważ atrybut [Authorize] już sprawdził, że token jest ważny.
                 throw new InvalidOperationException("User ID not found in token or is invalid.");
             }
             return userId;
         }
 
+        /// <summary>
+        /// Tworzy nowy transfer pieniężny.
+        /// </summary>
         [HttpPost]
         public async Task<IActionResult> CreateTransfer([FromBody] TransferRequestDto request)
         {
-            // ... (твой существующий код для CreateTransfer)
-             _logger.LogInformation(
-                "CreateTransfer endpoint called. FromAccountId: {FromAccountId}, ToAccountId: {ToAccountId}, Amount: {Amount}",
-                request.FromAccountId, request.ToAccountId, request.Amount);
-
             if (!ModelState.IsValid)
             {
-                _logger.LogWarning("CreateTransfer: ModelState is invalid.");
                 return BadRequest(ModelState);
             }
 
             try
             {
                 var userId = GetCurrentUserId();
+                _logger.LogInformation("CreateTransfer attempt by UserId {UserId} for FromAccountId {FromAccountId}", userId, request.FromAccountId);
+
                 var result = await _transferService.ExecuteTransferAsync(userId, request);
 
-                if (result.Success && result.TransferDetails != null)
+                if (result.Success)
                 {
-                    _logger.LogInformation("Transfer successful for UserId {UserId}. TransactionId: {TransactionId}", userId, result.TransferDetails.TransactionId);
+                    _logger.LogInformation("Transfer successful for UserId {UserId}, TransactionId: {TransactionId}", userId, result.TransferDetails?.TransactionId);
                     return Ok(result.TransferDetails);
                 }
                 else
@@ -69,45 +70,39 @@ namespace CurrencyTransferAPI.Controllers
             catch (InvalidOperationException ex)
             {
                 _logger.LogError(ex, "CreateTransfer: Error processing user identity from token.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error processing your identity: " + ex.Message });
+                return StatusCode(500, new { message = "An error occurred while processing your identity." });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "CreateTransfer: An unexpected error occurred.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An unexpected error occurred. Please try again." });
+                return StatusCode(500, new { message = "An unexpected error occurred." });
             }
         }
 
-        // --- НОВЫЙ МЕТОД ДЛЯ GET /api/Transfers ---
-        [HttpGet] // Атрибут для GET запросов
-        public async Task<ActionResult<IEnumerable<TransactionListItemDto>>> GetUserTransactions() // Возвращаемый тип
+        /// <summary>
+        /// Pobiera historię transakcji dla zalogowanego użytkownika.
+        /// </summary>
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<TransactionListItemDto>>> GetUserTransactions()
         {
-            _logger.LogInformation("GetUserTransactions endpoint called by a user.");
             try
             {
                 var userId = GetCurrentUserId();
+                _logger.LogInformation("Fetching transactions for UserId {UserId}", userId);
+
                 var transactions = await _transferService.GetTransactionsByUserIdAsync(userId);
-
-                // Проверка, если нужно вернуть NotFound для пустого списка (опционально, Ok с пустым списком тоже нормально)
-                // if (transactions == null || !transactions.Any())
-                // {
-                //     _logger.LogInformation("No transactions found for UserId {UserId}", userId);
-                //     return NotFound(new { message = "No transactions found for this user." });
-                // }
-
                 return Ok(transactions);
             }
-            catch (InvalidOperationException ex) // Ошибка из GetCurrentUserId
+            catch (InvalidOperationException ex)
             {
                 _logger.LogError(ex, "GetUserTransactions: Error processing user identity.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error processing your identity: " + ex.Message });
+                return StatusCode(500, new { message = "An error occurred while processing your identity." });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "GetUserTransactions: An unexpected error occurred.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An unexpected error occurred while fetching transactions." });
+                return StatusCode(500, new { message = "An unexpected error occurred while fetching transactions." });
             }
         }
-        // --- КОНЕЦ НОВОГО МЕТОДА ---
     }
 }

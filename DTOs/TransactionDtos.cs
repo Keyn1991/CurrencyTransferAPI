@@ -1,14 +1,14 @@
 
-namespace CurrencyTransferAPI.Services // lub CurrencyTransferAPI.DTOs
+namespace CurrencyTransferAPI.Services
 {
     public class TransactionListItemDto
     {
         public int Id { get; set; }
         public DateTime Timestamp { get; set; }
-        public string Type { get; set; } = string.Empty; // <--- Inicjalizacja wartością domyślną
+        public string Type { get; set; } = string.Empty;
         public decimal Amount { get; set; }
-        public string CurrencyCode { get; set; } = string.Empty; // <--- Inicjalizacja wartością domyślną
-        public string? Description { get; set; } // To już jest nullable, więc OK
+        public string CurrencyCode { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public int FromAccountId { get; set; }
         public int ToAccountId { get; set; }
     }

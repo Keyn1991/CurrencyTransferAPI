@@ -1,84 +1,46 @@
+// Plik: Controllers/AccountController.cs
+// Ten plik obsługuje wszystkie żądania związane z kontami bankowymi użytkowników.
+
 using CurrencyTransferAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using CurrencyTransferAPI.Models; // Dla AllowedCurrencies
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Http;
 
 namespace CurrencyTransferAPI.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
-    public class AccountsController : ControllerBase
+    // POPRAWKA: Zmieniamy trasę na "api/Accounts" (liczba mnoga), aby pasowała do żądań z frontendu.
+    [Route("api/Accounts")]
+    [Authorize] // Wszystkie metody w tym kontrolerze wymagają autoryzacji
+    public class AccountController : ControllerBase
     {
         private readonly IAccountService _accountService;
-        private readonly ILogger<AccountsController> _logger;
+        private readonly ILogger<AccountController> _logger;
 
-        public AccountsController(IAccountService accountService, ILogger<AccountsController> logger)
+        public AccountController(IAccountService accountService, ILogger<AccountController> logger)
         {
             _accountService = accountService;
             _logger = logger;
         }
 
+        // Ujednolicona, poprawna metoda do odczytu ID użytkownika z tokenu
         private int GetCurrentUserId()
         {
-            var userIdString = User.FindFirstValue(JwtRegisteredClaimNames.NameId);
-            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (int.TryParse(userIdClaim, out var userId))
             {
-                _logger.LogError("GetCurrentUserId failed: Could not find or parse NameId claim. Value found: '{UserIdString}'", userIdString);
-                throw new InvalidOperationException("User ID not found in token or is invalid.");
+                return userId;
             }
-            return userId;
+            throw new InvalidOperationException("User ID not found in token or is invalid.");
         }
 
-        [HttpPost]
-        public async Task<IActionResult> CreateAccount([FromBody] CreateAccountRequest request)
-        {
-            _logger.LogInformation("CreateAccount endpoint called with CurrencyCode: {CurrencyCode}", request.CurrencyCode);
-            if (!ModelState.IsValid)
-            {
-                _logger.LogWarning("CreateAccount: ModelState is invalid.");
-                return BadRequest(ModelState);
-            }
-
-            try
-            {
-                var userId = GetCurrentUserId();
-                var accountResponse = await _accountService.CreateAccountAsync(userId, request);
-
-                if (accountResponse == null)
-                {
-                    if (!AllowedCurrencies.IsAllowed(request.CurrencyCode))
-                    {
-                        _logger.LogWarning("CreateAccount failed: Invalid currency code {CurrencyCode} by UserId {UserId}.", request.CurrencyCode, userId);
-                        return BadRequest(new { message = $"Invalid currency code '{request.CurrencyCode}'. Allowed currencies are: {string.Join(", ", AllowedCurrencies.GetAll())}." });
-                    }
-                    _logger.LogWarning("CreateAccount failed for UserId {UserId}, Currency {CurrencyCode}. Account may already exist or user invalid.", userId, request.CurrencyCode);
-                    return BadRequest(new { message = "Could not create account. It may already exist for this currency or the user is invalid." });
-                }
-                return CreatedAtAction(nameof(GetAccountById), new { accountId = accountResponse.Id }, accountResponse);
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogError(ex, "CreateAccount: Error processing user identity from token.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while processing your identity: " + ex.Message });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "CreateAccount: An unexpected error occurred.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An unexpected error occurred. Please try again later."});
-            }
-        }
-
-        // ... Zachowaj istniejące metody GetUserAccounts i GetAccountById ...
+        /// <summary>
+        /// Pobiera wszystkie konta zalogowanego użytkownika.
+        /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetUserAccounts()
+        public async Task<IActionResult> GetMyAccounts()
         {
-            _logger.LogInformation("GetUserAccounts endpoint called.");
             try
             {
                 var userId = GetCurrentUserId();
@@ -87,41 +49,57 @@ namespace CurrencyTransferAPI.Controllers
             }
             catch (InvalidOperationException ex)
             {
-                 _logger.LogError(ex, "GetUserAccounts: Error processing user identity from token.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while processing your identity: " + ex.Message });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "GetUserAccounts: An unexpected error occurred.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An unexpected error occurred. Please try again later."});
+                _logger.LogError(ex, "GetMyAccounts: Error processing user identity from token.");
+                return StatusCode(500, new { message = "An error occurred while processing your identity." });
             }
         }
 
-        [HttpGet("{accountId:int}")]
-        public async Task<IActionResult> GetAccountById(int accountId)
+        /// <summary>
+        /// Tworzy nowe konto bankowe dla zalogowanego użytkownika.
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> CreateAccount([FromBody] CreateAccountRequest request)
         {
-            _logger.LogInformation("GetAccountById endpoint called for accountId: {AccountId}", accountId);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            try
+            {
+                var userId = GetCurrentUserId();
+                var newAccount = await _accountService.CreateAccountAsync(userId, request);
+                if (newAccount == null)
+                {
+                    return BadRequest("Could not create account. User not found or invalid currency.");
+                }
+                // Zwraca status 201 Created z lokalizacją nowego zasobu i jego danymi
+                return CreatedAtAction(nameof(GetAccount), new { accountId = newAccount.Id }, newAccount);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "CreateAccount: Error processing user identity from token.");
+                return StatusCode(500, new { message = "An error occurred while processing your identity." });
+            }
+        }
+
+        /// <summary>
+        /// Pobiera szczegóły konkretnego konta należącego do zalogowanego użytkownika.
+        /// </summary>
+        [HttpGet("{accountId}")]
+        public async Task<IActionResult> GetAccount(int accountId)
+        {
             try
             {
                 var userId = GetCurrentUserId();
                 var account = await _accountService.GetAccountByIdAsync(accountId, userId);
-
-                if (account == null)
-                {
-                    _logger.LogWarning("GetAccountById: Account not found or no permission for accountId {AccountId} and UserId {UserId}", accountId, userId);
-                    return NotFound(new { message = "Account not found or you do not have permission to access it." });
-                }
+                if (account == null) return NotFound();
                 return Ok(account);
             }
             catch (InvalidOperationException ex)
             {
-                _logger.LogError(ex, "GetAccountById: Error processing user identity from token for accountId {AccountId}.", accountId);
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while processing your identity: " + ex.Message });
-            }
-            catch (Exception ex)
-            {
-                 _logger.LogError(ex, "GetAccountById: An unexpected error occurred for accountId {AccountId}.", accountId);
-                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An unexpected error occurred. Please try again later."});
+                _logger.LogError(ex, "GetAccount: Error processing user identity from token.");
+                return StatusCode(500, new { message = "An error occurred while processing your identity." });
             }
         }
     }

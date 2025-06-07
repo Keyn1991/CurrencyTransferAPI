@@ -1,15 +1,15 @@
+// Plik: Controllers/AuthController.cs
+
+using CurrencyTransferAPI.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using System.Threading.Tasks;
-using CurrencyTransferAPI.Services;   // Dla IAuthService, RegisterRequest, LoginRequest
-using Microsoft.AspNetCore.Authorization; // Dla atrybutu [Authorize]
-using System.Security.Claims;         // Dla dostępu do Claims (informacji z tokenu)
-using CurrencyTransferAPI.Models;     // Dla UserRoles (jeśli używasz stałej UserRoles.Admin)
-using System.IdentityModel.Tokens.Jwt;
 
 namespace CurrencyTransferAPI.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
@@ -22,16 +22,10 @@ namespace CurrencyTransferAPI.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterRequest model)
         {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
             var result = await _authService.RegisterAsync(model);
-
             if (result == null)
             {
-                return BadRequest(new { message = "Username already exists or registration failed." });
+                return BadRequest(new { message = "Username or email already exists." });
             }
             return Ok(result);
         }
@@ -39,13 +33,7 @@ namespace CurrencyTransferAPI.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest model)
         {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
             var result = await _authService.LoginAsync(model);
-
             if (result == null)
             {
                 return Unauthorized(new { message = "Invalid username or password." });
@@ -53,42 +41,23 @@ namespace CurrencyTransferAPI.Controllers
             return Ok(result);
         }
 
-        // --- NOWE METODY ---
-
+        // Ten endpoint jest teraz poprawnie chroniony i odczytuje dane z tokenu
         [HttpGet("me")]
-        [Authorize] // Ten endpoint wymaga autoryzacji (ważnego tokenu JWT)
+        [Authorize]
         public IActionResult GetCurrentUser()
         {
-            // Dostęp do informacji o użytkowniku z tokenu JWT
-            // User to obiekt ClaimsPrincipal dostarczany przez ASP.NET Core
-            var userId = User.FindFirstValue(JwtRegisteredClaimNames.NameId); // ID użytkownika (z claima "nameid")
-            var userName = User.FindFirstValue(JwtRegisteredClaimNames.Sub); // Nazwa użytkownika (z claima "sub")
-                                                                          // Alternatywnie User.Identity?.Name;
-            var userRole = User.FindFirstValue(ClaimTypes.Role); // Rola użytkownika (z claima "role")
-            var userEmail = User.FindFirstValue(ClaimTypes.Email); // Email (z claima "email")
-
-
-            if (string.IsNullOrEmpty(userId)) // Sprawdzenie, czy udało się odczytać ID (choć [Authorize] powinno to zapewnić)
+            if (User.Identity?.IsAuthenticated == false)
             {
-                // To nie powinno się zdarzyć, jeśli token jest poprawny i [Authorize] działa
                 return Unauthorized(new { message = "Could not identify user from token." });
             }
 
-            return Ok(new {
-                Id = userId,
-                Username = userName,
-                Email = userEmail,
-                Role = userRole
+            return Ok(new
+            {
+                Id = User.FindFirstValue(ClaimTypes.NameIdentifier),
+                Username = User.FindFirstValue(ClaimTypes.Name),
+                Email = User.FindFirstValue(ClaimTypes.Email),
+                Role = User.FindFirstValue(ClaimTypes.Role)
             });
-        }
-
-        [HttpGet("adminarea")]
-        [Authorize(Roles = UserRoles.Admin)] // Ten endpoint wymaga bycia zalogowanym ORAZ posiadania roli "Admin"
-                                             // UserRoles.Admin pochodzi z CurrencyTransferAPI.Models.UserRoles
-        public IActionResult GetAdminAreaData()
-        {
-            // Ten kod zostanie wykonany tylko jeśli użytkownik ma rolę "Admin"
-            return Ok(new { message = "Welcome to the Admin Area! Only true admins can see this sacred place." });
         }
     }
 }

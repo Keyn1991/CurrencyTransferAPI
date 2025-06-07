@@ -1,21 +1,44 @@
-using CurrencyTransferAPI.DTOs; // <--- DODAJ TĘ LINIĘ
-using System.Collections.Generic; // Dla IEnumerable, jeśli używasz go dla TransactionListItemDto
+// Plik: Services/IPayUService.cs
+// Ten plik zawiera TYLKO definicje interfejsu i DTO dla PayU.
+
 using System.Threading.Tasks;
 
 namespace CurrencyTransferAPI.Services
 {
-    // Jeśli TransactionListItemDto jest zdefiniowany w DTOs/TransactionDtos.cs,
-    // to też będzie potrzebny `using CurrencyTransferAPI.DTOs;` (lub odpowiedni namespace)
-    // jeśli TransactionListItemDto jest używany w tym interfejsie.
+    // --- Data Transfer Objects (DTOs) dla PayU ---
+    // Te definicje są teraz w JEDNYM, poprawnym miejscu.
 
-    // Tutaj też masz definicje DTO dla transferów, upewnij się, że są one
-    // albo w tym samym namespace co interfejs, albo jest odpowiedni using.
-    // W Twoim poprzednim kodzie były one w namespace CurrencyTransferAPI.Services, więc było OK.
+    public class CreatePaymentRequestDto
+    {
+        public int AccountId { get; set; }
+        public decimal Amount { get; set; }
+        public string CurrencyCode { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string ContinueUrl { get; set; } = string.Empty;
+    }
+
+    public class CreatePaymentResponseDto
+    {
+        public bool Success { get; set; }
+        public string? OrderId { get; set; }
+        public string? RedirectUri { get; set; }
+        public string? ErrorMessage { get; set; }
+    }
+
+    public class PaymentStatusDto
+    {
+        public int AccountId { get; set; }
+        public string? OrderId { get; set; }
+        public string? Status { get; set; }
+        public decimal Amount { get; set; }
+        public string CurrencyCode { get; set; } = string.Empty;
+    }
+
+    // --- Definicja Interfejsu ---
 
     public interface IPayUService
     {
-        Task<CreatePaymentResponseDto> CreatePaymentAsync(CreatePaymentRequestDto request); // Teraz CreatePaymentResponseDto powinno być widoczne
+        Task<CreatePaymentResponseDto> CreatePaymentAsync(int userId, CreatePaymentRequestDto request);
         Task<PaymentStatusDto> GetPaymentStatusAsync(string orderId);
-        // Task<bool> ProcessWebhookNotificationAsync(PayUWebhookNotification notification);
     }
 }

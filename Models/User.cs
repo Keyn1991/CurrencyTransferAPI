@@ -1,10 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis; // Potrzebne dla SuppressMessage lub required
+using System.Diagnostics.CodeAnalysis;
 
 namespace CurrencyTransferAPI.Models
 {
-    // UserRoles.cs pozostaje bez zmian
+
 
     public class User
     {

@@ -3122,11 +3122,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "F:\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
+      "projectUniqueName": "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
       "projectName": "CurrencyTransferAPI",
-      "projectPath": "F:\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
+      "projectPath": "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
       "packagesPath": "C:\\Users\\potap\\.nuget\\packages\\",
-      "outputPath": "F:\\currency-transfer\\CurrencyTransferAPI\\obj\\",
+      "outputPath": "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
