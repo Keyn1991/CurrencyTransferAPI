@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "F:\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj": {}
+    "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj": {}
   },
   "projects": {
-    "F:\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj": {
+    "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "F:\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
+        "projectUniqueName": "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
         "projectName": "CurrencyTransferAPI",
-        "projectPath": "F:\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
+        "projectPath": "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\CurrencyTransferAPI.csproj",
         "packagesPath": "C:\\Users\\potap\\.nuget\\packages\\",
-        "outputPath": "F:\\currency-transfer\\CurrencyTransferAPI\\obj\\",
+        "outputPath": "F:\\GGGGGGGGGG\\currency-transfer\\CurrencyTransferAPI\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -51,13 +51,31 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
+            "BCrypt.Net-Next": {
+              "target": "Package",
+              "version": "[4.0.3, )"
+            },
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[9.0.0-preview.3.24172.13, )"
+            },
             "Microsoft.AspNetCore.OpenApi": {
               "target": "Package",
-              "version": "[9.0.3, )"
+              "version": "[9.0.0-preview.3.24172.13, )"
+            },
+            "Microsoft.EntityFrameworkCore.Tools": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[8.0.4, )"
+            },
+            "Pomelo.EntityFrameworkCore.MySql": {
+              "target": "Package",
+              "version": "[8.0.2, )"
             },
             "Swashbuckle.AspNetCore": {
               "target": "Package",
-              "version": "[8.1.1, )"
+              "version": "[6.5.0, )"
             }
           },
           "imports": [
